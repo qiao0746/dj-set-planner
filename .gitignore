@@ -1,0 +1,12 @@
+/target/
+**/__pycache__/
+*.class
+.idea/
+*.iml
+.DS_Store
+
+# Generated analyze artifacts (CLI/UI)
+**/*.cache.json
+**/*.summary.json
+**/*.selected.json
+data/temp-*.json

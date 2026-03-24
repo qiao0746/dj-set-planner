@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>djset — result viewer (offline)</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --surface: #181c24;
+        --border: #2a3142;
+        --text: #e8eaef;
+        --muted: #8b93a7;
+        --accent: #6ee7b7;
+        --accent-dim: #34d399;
+        --font: "Segoe UI", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+      header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+      header h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.35rem;
+        font-weight: 600;
+      }
+      header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+      .dropzone {
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        color: var(--muted);
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+      }
+      .dropzone:hover,
+      .dropzone.dragover {
+        border-color: var(--accent-dim);
+        background: rgba(52, 211, 153, 0.06);
+      }
+      .dropzone strong {
+        color: var(--text);
+      }
+      .paste-row {
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .paste-row textarea {
+        flex: 1;
+        min-width: 280px;
+        min-height: 80px;
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+      }
+      .btn {
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        border: none;
+        background: var(--accent-dim);
+        color: #042f2e;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn:hover {
+        filter: brightness(1.08);
+      }
+      .error {
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        background: rgba(239, 68, 68, 0.15);
+        color: #fca5a5;
+        font-size: 0.9rem;
+      }
+      section {
+        margin-top: 2rem;
+      }
+      section h2 {
+        font-size: 1.1rem;
+        margin: 0 0 1rem;
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .meta span strong {
+        color: var(--text);
+      }
+      .chart-wrap {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+      .chart-wrap h3 {
+        margin: 0 0 0.75rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .chart-svg {
+        width: 100%;
+        height: 120px;
+        display: block;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        background: var(--surface);
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+      th,
+      td {
+        padding: 0.6rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--muted);
+        font-weight: 600;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      tr:hover td {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      .slot-reason {
+        max-width: 320px;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+      .tab {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .tab.active {
+        border-color: var(--accent-dim);
+        color: var(--accent);
+        background: rgba(52, 211, 153, 0.1);
+      }
+      .hidden {
+        display: none !important;
+      }
+      footer {
+        padding: 2rem 1.5rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>djset result viewer</h1>
+      <p>
+        <strong>No server needed</strong> — double-click this file, then load JSON from
+        <code>plan</code>, <code>build-from-first</code>, <code>shape-from-first</code>, or a track array
+        (<code>analyze</code> output). Use drop, file pick, or paste.
+      </p>
+    </header>
+    <main>
+      <div id="dropzone" class="dropzone">
+        <strong>Drop a JSON file</strong> or click to choose<br />
+        <span>Supports SetPlan, shape-from-first, or <code>[ …tracks ]</code></span>
+      </div>
+      <input type="file" id="fileInput" accept=".json,application/json" class="hidden" />
+
+      <div class="paste-row">
+        <textarea id="jsonPaste" placeholder="Or paste JSON here…"></textarea>
+        <button type="button" class="btn" id="loadPaste">Load pasted JSON</button>
+      </div>
+
+      <div id="error" class="error hidden" role="alert"></div>
+      <div id="content"></div>
+    </main>
+    <footer>
+      Single file: copy <code>djset-result-viewer.html</code> anywhere and open it. JSON is read only on your machine.
+    </footer>
+    <script>
+      (function () {
+        const dropzone = document.getElementById("dropzone");
+        const fileInput = document.getElementById("fileInput");
+        const jsonPaste = document.getElementById("jsonPaste");
+        const loadPaste = document.getElementById("loadPaste");
+        const errorEl = document.getElementById("error");
+        const content = document.getElementById("content");
+
+        function showError(msg) {
+          errorEl.textContent = msg;
+          errorEl.classList.remove("hidden");
+        }
+
+        function clearError() {
+          errorEl.textContent = "";
+          errorEl.classList.add("hidden");
+        }
+
+        function parseJson(text) {
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            throw new Error("Invalid JSON: " + e.message);
+          }
+        }
+
+        function esc(s) {
+          if (s == null) return "";
+          const d = document.createElement("div");
+          d.textContent = String(s);
+          return d.innerHTML;
+        }
+
+        function trackRow(t, i, extraCols) {
+          const e10 =
+            t.djEnergy != null && t.djEnergy > 0
+              ? Number(t.djEnergy).toFixed(2)
+              : t.energy != null
+                ? (Number(t.energy) * 10).toFixed(2)
+                : "—";
+          const ten = t.tension != null ? Number(t.tension).toFixed(2) : "—";
+          const inten = t.intensity != null ? Number(t.intensity).toFixed(2) : "—";
+          let extra = "";
+          if (extraCols) {
+            extra = extraCols(t, i);
+          }
+          return (
+            "<tr>" +
+            '<td class="num">' +
+            (i + 1) +
+            "</td>" +
+            "<td>" +
+            esc(t.title) +
+            "</td>" +
+            '<td class="num">' +
+            (t.bpm != null ? esc(t.bpm) : "—") +
+            "</td>" +
+            '<td class="num">' +
+            esc(t.key) +
+            "</td>" +
+            '<td class="num">' +
+            e10 +
+            "</td>" +
+            '<td class="num">' +
+            ten +
+            "</td>" +
+            '<td class="num">' +
+            inten +
+            "</td>" +
+            extra +
+            "</tr>"
+          );
+        }
+
+        function renderSetPlan(data) {
+          const tracks = data.orderedTracks || [];
+          const trans = data.transitions || [];
+          let html =
+            "<section><h2>Set plan</h2><div class=\"meta\">" +
+            "<span><strong>Style</strong> " +
+            esc(data.style || "—") +
+            "</span>" +
+            "<span><strong>Curve</strong> " +
+            esc(data.targetCurve || "—") +
+            "</span>" +
+            "<span><strong>Overall score</strong> " +
+            (data.overallScore != null ? esc(data.overallScore) : "—") +
+            "</span></div>";
+
+          const eSeries = tracks.map(function (t) {
+            return t.djEnergy != null && t.djEnergy > 0
+              ? Number(t.djEnergy)
+              : (Number(t.energy) || 0) * 10;
+          });
+          const tSeries = tracks.map(function (t) {
+            return Number(t.tension) || 0;
+          });
+          html += renderDualChart("Track energy & tension (0–10)", eSeries, tSeries, [
+            "djEnergy×10?",
+            "tension",
+          ]);
+
+          html +=
+            "<table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>Key</th><th>Energy</th><th>Tension</th><th>Intensity</th></tr></thead><tbody>";
+          tracks.forEach(function (t, i) {
+            html += trackRow(t, i);
+          });
+          html += "</tbody></table>";
+
+          if (trans.length) {
+            const idToTitle = {};
+            tracks.forEach(function (t) {
+              if (t && t.id) idToTitle[t.id] = t.title && String(t.title).trim() !== "" ? t.title : t.id;
+            });
+            html +=
+              '<h3 style="margin-top:1.5rem;font-size:0.95rem;color:var(--muted)">Transitions</h3><table><thead><tr><th>From → To</th><th>Score</th><th>Mix</th><th>Reasons</th></tr></thead><tbody>';
+            trans.forEach(function (tr) {
+              const reasons = Array.isArray(tr.reasons) ? tr.reasons.join("; ") : "";
+              const fromL = idToTitle[tr.fromTrackId] || tr.fromTrackId;
+              const toL = idToTitle[tr.toTrackId] || tr.toTrackId;
+              html +=
+                "<tr><td><small>" +
+                esc(fromL) +
+                " → " +
+                esc(toL) +
+                "</small></td>" +
+                '<td class="num">' +
+                esc(tr.compatibilityScore) +
+                "</td><td>" +
+                esc(tr.mixSuggestion) +
+                '</td><td class="slot-reason">' +
+                esc(reasons) +
+                "</td></tr>";
+            });
+            html += "</tbody></table>";
+          }
+          html += "</section>";
+          return html;
+        }
+
+        function linePath(values, width, height, pad, minV, maxV) {
+          if (!values.length) return "";
+          const n = values.length;
+          const span = maxV - minV || 1;
+          const pts = values.map(function (v, i) {
+            const x = pad + (i / Math.max(1, n - 1)) * (width - 2 * pad);
+            const y = height - pad - ((v - minV) / span) * (height - 2 * pad);
+            return x + "," + y;
+          });
+          return pts.join(" ");
+        }
+
+        function renderDualChart(title, seriesA, seriesB, labels) {
+          const w = 800;
+          const h = 120;
+          const pad = 12;
+          const all = seriesA.concat(seriesB).filter(function (x) {
+            return !Number.isNaN(x);
+          });
+          const minV = Math.min.apply(null, [0].concat(all));
+          const maxV = Math.max.apply(null, [10].concat(all));
+          const pathA = linePath(seriesA, w, h, pad, minV, maxV);
+          const pathB = linePath(seriesB, w, h, pad, minV, maxV);
+          return (
+            '<div class="chart-wrap"><h3>' +
+            esc(title) +
+            '</h3><svg class="chart-svg" viewBox="0 0 ' +
+            w +
+            " " +
+            h +
+            '" preserveAspectRatio="xMidYMid meet">' +
+            '<rect width="' +
+            w +
+            '" height="' +
+            h +
+            '" fill="transparent" />' +
+            '<polyline fill="none" stroke="#34d399" stroke-width="2" points="' +
+            pathA +
+            '" />' +
+            '<polyline fill="none" stroke="#60a5fa" stroke-width="2" points="' +
+            pathB +
+            '" />' +
+            '</svg><div style="font-size:0.75rem;color:var(--muted)">' +
+            '<span style="color:#34d399">● ' +
+            esc(labels[0]) +
+            '</span> &nbsp;&nbsp; <span style="color:#60a5fa">● ' +
+            esc(labels[1]) +
+            "</span></div></div>"
+          );
+        }
+
+        function renderShapePlan(plan, modeKey) {
+          const te = plan.targetEnergyCurve || [];
+          const tt = plan.targetTensionCurve || [];
+          const tracks = plan.orderedTracks || [];
+          const debug = plan.slotDebug || [];
+
+          let html =
+            '<section data-mode-tab="' +
+            esc(modeKey) +
+            '"><h2>Mode: ' +
+            esc(modeKey) +
+            "</h2>";
+          html += renderDualChart(
+            "Target curves (0–10)",
+            te.map(Number),
+            tt.map(Number),
+            ["target energy", "target tension"]
+          );
+
+          const eTr = tracks.map(function (t) {
+            return t.djEnergy != null && t.djEnergy > 0
+              ? Number(t.djEnergy)
+              : (Number(t.energy) || 0) * 10;
+          });
+          const tTr = tracks.map(function (t) {
+            return Number(t.tension) || 0;
+          });
+          html += renderDualChart("Assigned tracks (energy & tension)", eTr, tTr, [
+            "track energy",
+            "tension",
+          ]);
+
+          html +=
+            "<table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>Key</th><th>Energy</th><th>Tension</th><th>Intensity</th><th>Slot fit</th><th>ΔE/ΔT/ΔI</th><th>In / Out</th><th>Note</th></tr></thead><tbody>";
+
+          tracks.forEach(function (t, i) {
+            const d = debug[i] || {};
+            const dist =
+              (d.energyDistance != null ? d.energyDistance.toFixed(2) : "—") +
+              " / " +
+              (d.tensionDistance != null ? d.tensionDistance.toFixed(2) : "—") +
+              " / " +
+              (d.intensityDistance != null ? d.intensityDistance.toFixed(2) : "—");
+            const transS =
+              (d.transitionInScore != null ? d.transitionInScore.toFixed(2) : "—") +
+              " / " +
+              (d.transitionOutScore != null ? d.transitionOutScore.toFixed(2) : "—");
+            html +=
+              "<tr>" +
+              '<td class="num">' +
+              (i + 1) +
+              "</td>" +
+              "<td>" +
+              esc(t.title) +
+              "</td>" +
+              '<td class="num">' +
+              esc(t.bpm) +
+              "</td>" +
+              '<td class="num">' +
+              esc(t.key) +
+              "</td>" +
+              '<td class="num">' +
+              (t.djEnergy != null ? esc(t.djEnergy) : "—") +
+              "</td>" +
+              '<td class="num">' +
+              esc(t.tension) +
+              "</td>" +
+              '<td class="num">' +
+              esc(t.intensity) +
+              "</td>" +
+              '<td class="num">' +
+              (d.slotFitScore != null ? d.slotFitScore.toFixed(2) : "—") +
+              "</td>" +
+              '<td class="num" style="font-size:0.75rem">' +
+              esc(dist) +
+              "</td>" +
+              '<td class="num" style="font-size:0.75rem">' +
+              esc(transS) +
+              "</td>" +
+              '<td class="slot-reason">' +
+              esc(d.reason) +
+              "</td></tr>";
+          });
+          html += "</tbody></table></section>";
+          return html;
+        }
+
+        function renderShapeFromFirst(data) {
+          const modes = data.shapeByMode || {};
+          const keys = Object.keys(modes);
+          if (!keys.length) return "<p>No shapeByMode found.</p>";
+
+          let tabs = '<div class="tabs" id="modeTabs">';
+          keys.forEach(function (k, i) {
+            tabs +=
+              '<button type="button" class="tab' +
+              (i === 0 ? " active" : "") +
+              '" data-tab="' +
+              esc(k) +
+              '">' +
+              esc(k) +
+              "</button>";
+          });
+          tabs += '</div><div id="modePanels">';
+
+          keys.forEach(function (k, i) {
+            tabs +=
+              '<div class="mode-panel' +
+              (i === 0 ? "" : " hidden") +
+              '" data-panel="' +
+              esc(k) +
+              '">';
+            tabs += renderShapePlan(modes[k], k);
+            tabs += "</div>";
+          });
+          tabs += "</div>";
+
+          let seed = "";
+          if (data.seedTracks && data.seedTracks.length) {
+            seed =
+              "<section><h2>Seed list (" +
+              esc(data.seedTrackCount) +
+              ' tracks)</h2><table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>Key</th><th>Energy</th><th>Tension</th><th>Intensity</th></tr></thead><tbody>';
+            data.seedTracks.forEach(function (t, i) {
+              seed += trackRow(t, i);
+            });
+            seed += "</tbody></table></section>";
+          }
+
+          return seed + tabs;
+        }
+
+        function wireTabs() {
+          const tabs = document.querySelectorAll("#modeTabs .tab");
+          const panels = document.querySelectorAll("#modePanels .mode-panel");
+          tabs.forEach(function (tab) {
+            tab.addEventListener("click", function () {
+              const name = tab.getAttribute("data-tab");
+              tabs.forEach(function (t) {
+                t.classList.remove("active");
+              });
+              tab.classList.add("active");
+              panels.forEach(function (p) {
+                p.classList.toggle("hidden", p.getAttribute("data-panel") !== name);
+              });
+            });
+          });
+        }
+
+        function render(data) {
+          clearError();
+          let html = "";
+
+          if (data.shapeByMode) {
+            html += renderShapeFromFirst(data);
+          } else if (data.orderedTracks && Array.isArray(data.orderedTracks) && !data.seedTracks) {
+            html += renderSetPlan(data);
+          } else if (Array.isArray(data)) {
+            html +=
+              "<section><h2>Tracks (" +
+              data.length +
+              ')</h2><table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>Key</th><th>Energy</th><th>Tension</th><th>Intensity</th></tr></thead><tbody>';
+            data.forEach(function (t, i) {
+              html += trackRow(t, i);
+            });
+            html += "</tbody></table></section>";
+          } else {
+            html =
+              '<p class="error">Unknown JSON shape. Use SetPlan output, shape-from-first output, or a track array.</p>';
+          }
+
+          content.innerHTML = html;
+          if (data.shapeByMode) wireTabs();
+        }
+
+        function loadText(text) {
+          const data = parseJson(text);
+          render(data);
+        }
+
+        dropzone.addEventListener("click", function () {
+          fileInput.click();
+        });
+        dropzone.addEventListener("dragover", function (e) {
+          e.preventDefault();
+          dropzone.classList.add("dragover");
+        });
+        dropzone.addEventListener("dragleave", function () {
+          dropzone.classList.remove("dragover");
+        });
+        dropzone.addEventListener("drop", function (e) {
+          e.preventDefault();
+          dropzone.classList.remove("dragover");
+          const f = e.dataTransfer.files[0];
+          if (f) {
+            f.text()
+              .then(loadText)
+              .catch(function (err) {
+                showError(err.message);
+              });
+          }
+        });
+
+        fileInput.addEventListener("change", function () {
+          const f = fileInput.files[0];
+          if (f) {
+            f.text()
+              .then(loadText)
+              .catch(function (err) {
+                showError(err.message);
+              });
+          }
+        });
+
+        loadPaste.addEventListener("click", function () {
+          try {
+            loadText(jsonPaste.value);
+          } catch (e) {
+            showError(e.message);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

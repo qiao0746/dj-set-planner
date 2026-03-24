@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>djset — interactive planner</title>
+    <style>
+      :root {
+        --bg: #0c0e12;
+        --panel: #151922;
+        --border: #2a3142;
+        --text: #e8eaef;
+        --muted: #8b93a7;
+        --accent: #34d399;
+        --err: #f87171;
+        --font: "Segoe UI", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.45;
+        min-height: 100vh;
+      }
+      header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+      header h1 {
+        margin: 0;
+        font-size: 1.2rem;
+      }
+      header p {
+        margin: 0.35rem 0 0;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(280px, 380px) 1fr;
+        gap: 0;
+        min-height: calc(100vh - 72px);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      aside {
+        border-right: 1px solid var(--border);
+        padding: 1rem 1.25rem;
+        background: #11141a;
+      }
+      main {
+        padding: 1rem 1.25rem;
+        overflow: auto;
+      }
+      label {
+        display: block;
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin: 0.75rem 0 0.25rem;
+      }
+      input[type="text"],
+      input[type="number"],
+      select {
+        width: 100%;
+        padding: 0.5rem 0.6rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        font-size: 0.9rem;
+      }
+      .hint {
+        font-size: 0.7rem;
+        color: var(--muted);
+        margin-top: 0.2rem;
+      }
+      .btn {
+        margin-top: 1.25rem;
+        width: 100%;
+        padding: 0.65rem 1rem;
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #042f2e;
+        font-weight: 700;
+        cursor: pointer;
+        font-size: 0.95rem;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      details {
+        margin-top: 1rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .status {
+        margin-top: 0.75rem;
+        padding: 0.6rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+      }
+      .status.error {
+        border-color: #7f1d1d;
+        color: var(--err);
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      .tabs {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.75rem;
+      }
+      .tab {
+        padding: 0.4rem 0.85rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .tab.active {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: rgba(52, 211, 153, 0.08);
+      }
+      .hidden {
+        display: none !important;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      th,
+      td {
+        padding: 0.45rem 0.55rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      h2 {
+        font-size: 1rem;
+        margin: 1rem 0 0.5rem;
+        color: var(--accent);
+      }
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>djset interactive planner</h1>
+      <p>
+        Runs on this machine only (<code>127.0.0.1</code>). Default: <strong>default plan</strong> — opener fixed, following tracks chosen for
+        smooth transitions. Switch to <strong>shaped</strong> for curve-based club/rave/house_party modes.
+      </p>
+    </header>
+    <div class="layout">
+      <aside>
+        <form id="form">
+          <label for="musicDir">Music folder (full path)</label>
+          <input type="text" id="musicDir" name="musicDir" placeholder="C:\Music\my-set" required autocomplete="off" />
+          <div class="hint">Windows: use backslashes or double them in JSON; paste path from Explorer.</div>
+
+          <label for="analyzerMode">Analyze mode (audio)</label>
+          <select id="analyzerMode" name="analyzerMode">
+            <option value="standard">standard</option>
+            <option value="rekordbox-like">rekordbox-like</option>
+          </select>
+
+          <label for="planMode">Plan mode</label>
+          <select id="planMode" name="planMode">
+            <option value="default" selected>Default — opener #1, smooth transitions (build-from-first)</option>
+            <option value="shaped">Shaped — curve modes (club / rave / house_party)</option>
+          </select>
+          <div class="hint" id="planModeHint">
+            Default matches the CLI <code>build-from-first</code> behavior; <code>SetPlan</code> includes per-step transitions.
+          </div>
+
+          <div id="defaultOptions">
+            <label for="targetCurve">Target curve (default plan)</label>
+            <input type="text" id="targetCurve" name="targetCurve" value="gradual-rise" autocomplete="off" />
+            <div class="hint">Same as <code>--target-curve</code> on build-from-first (e.g. gradual-rise).</div>
+          </div>
+
+          <div id="shapedOptions" class="hidden">
+            <label for="shapeModes">Set-shape mode(s)</label>
+            <select id="shapeModes" name="shapeModes">
+              <option value="all">all (club, rave, house_party)</option>
+              <option value="club">club</option>
+              <option value="rave">rave</option>
+              <option value="house_party">house_party</option>
+            </select>
+          </div>
+
+          <label for="count">Track count (1–10)</label>
+          <input type="number" id="count" name="count" min="1" max="10" value="8" />
+
+          <label for="firstTrackTitle">Opening track (optional)</label>
+          <input type="text" id="firstTrackTitle" name="firstTrackTitle" placeholder="Partial title, e.g. Coming Up" autocomplete="off" />
+          <div class="hint" id="openingHint">
+            <strong>Default:</strong> leave empty to use the <em>first analyzed</em> file as #1, or set a partial title to match.
+            <strong>Shaped:</strong> if set, that track is pinned as #1 while the rest follow the curve.
+          </div>
+
+          <label for="defaultGenre">Default genre (if MP3 has none)</label>
+          <input type="text" id="defaultGenre" name="defaultGenre" value="house" />
+
+          <details>
+            <summary>Advanced</summary>
+            <label for="analyzeWorkers">Parallel workers (1–32)</label>
+            <input type="number" id="analyzeWorkers" name="analyzeWorkers" min="1" max="32" value="4" />
+            <label for="pythonCmd">Python command</label>
+            <input type="text" id="pythonCmd" name="pythonCmd" value="python" />
+            <label for="analyzerScript">Analyzer script path</label>
+            <input type="text" id="analyzerScript" name="analyzerScript" value="python/audio_analyzer.py" />
+            <label for="style">Planner style label (optional)</label>
+            <input type="text" id="style" name="style" placeholder="tech-house" />
+            <label class="checkbox-label"><input type="checkbox" id="reanalyze" name="reanalyze" /> Force re-analyze (ignore per-file cache; still writes under ~/.djset/analyze-cache)</label>
+          </details>
+
+          <button type="submit" class="btn" id="submitBtn">Analyze &amp; generate</button>
+        </form>
+        <div id="status" class="status hidden"></div>
+      </aside>
+      <main>
+        <div id="empty" class="hint">Submit the form to see the default set (with transitions) or shaped modes.</div>
+        <div id="results" class="hidden"></div>
+      </main>
+    </div>
+    <script>
+      (function () {
+        var form = document.getElementById("form");
+        var statusEl = document.getElementById("status");
+        var results = document.getElementById("results");
+        var empty = document.getElementById("empty");
+        var submitBtn = document.getElementById("submitBtn");
+        var planModeEl = document.getElementById("planMode");
+        var defaultOptions = document.getElementById("defaultOptions");
+        var shapedOptions = document.getElementById("shapedOptions");
+
+        function syncPlanModeUi() {
+          var isDefault = planModeEl.value === "default";
+          defaultOptions.classList.toggle("hidden", !isDefault);
+          shapedOptions.classList.toggle("hidden", isDefault);
+        }
+        planModeEl.addEventListener("change", syncPlanModeUi);
+        syncPlanModeUi();
+
+        function esc(s) {
+          if (s == null) return "";
+          var d = document.createElement("div");
+          d.textContent = String(s);
+          return d.innerHTML;
+        }
+
+        /** id -> display title for transition rows (falls back to id). */
+        function trackLabelById(tracks) {
+          var map = {};
+          (tracks || []).forEach(function (t) {
+            if (t && t.id != null && t.id !== "") map[t.id] = t.title && String(t.title).trim() !== "" ? t.title : t.id;
+          });
+          return map;
+        }
+
+        function showStatus(msg, isErr) {
+          statusEl.textContent = msg;
+          statusEl.classList.remove("hidden");
+          statusEl.classList.toggle("error", !!isErr);
+        }
+
+        function clearStatus() {
+          statusEl.classList.add("hidden");
+          statusEl.textContent = "";
+        }
+
+        function renderDefaultPlan(data) {
+          var sp = data.setPlan;
+          if (!sp) return "";
+          var opener = data.openerNote || data.greedyOpenerNote;
+          var html = "";
+          html += '<div class="meta">';
+          html += "<span>Plan: <strong>default</strong></span>";
+          html += "<span>Analyzed: <strong>" + esc(data.analyzedTrackCount) + "</strong></span>";
+          html += "<span>Tracks: <strong>" + esc(data.seedTrackCount) + "</strong></span>";
+          if (opener) {
+            html += "<span>Opener: <strong>" + esc(opener) + "</strong></span>";
+          }
+          if (data.analyzeOutputPath) {
+            html +=
+              "<span style='flex-basis:100%;font-size:0.75rem;color:var(--muted)'>Analyze JSON: <code style='word-break:break-all'>" +
+              esc(data.analyzeOutputPath) +
+              "</code></span>";
+          }
+          html += "</div>";
+          html += "<h2>Default set (build-from-first)</h2>";
+          html += '<div class="meta"><span>Style: <strong>' + esc(sp.style) + "</strong></span>";
+          html += "<span>Curve: <strong>" + esc(sp.targetCurve) + "</strong></span>";
+          html += "<span>Overall: <strong>" + esc(sp.overallScore != null ? sp.overallScore.toFixed(3) : "—") + "</strong></span></div>";
+          html += "<table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>djE</th><th>Ten</th></tr></thead><tbody>";
+          (sp.orderedTracks || []).forEach(function (t, i) {
+            html +=
+              "<tr><td class='num'>" +
+              (i + 1) +
+              "</td><td>" +
+              esc(t.title) +
+              "</td><td class='num'>" +
+              esc(t.bpm) +
+              "</td><td class='num'>" +
+              esc(t.djEnergy != null ? t.djEnergy.toFixed(2) : "—") +
+              "</td><td class='num'>" +
+              esc(t.tension != null ? t.tension.toFixed(2) : "—") +
+              "</td></tr>";
+          });
+          html += "</tbody></table>";
+          var trans = sp.transitions || [];
+          if (trans.length) {
+            var tLabels = trackLabelById(sp.orderedTracks);
+            html += "<h2>Transitions</h2><table><thead><tr><th>From → To</th><th>Score</th><th>Mix</th><th>Reasons</th></tr></thead><tbody>";
+            trans.forEach(function (tr) {
+              var reasons = Array.isArray(tr.reasons) ? tr.reasons.join("; ") : "";
+              var fromL = tLabels[tr.fromTrackId] || tr.fromTrackId;
+              var toL = tLabels[tr.toTrackId] || tr.toTrackId;
+              html +=
+                "<tr><td><small>" +
+                esc(fromL) +
+                " → " +
+                esc(toL) +
+                "</small></td><td class='num'>" +
+                esc(tr.compatibilityScore != null ? tr.compatibilityScore.toFixed(3) : "—") +
+                "</td><td>" +
+                esc(tr.mixSuggestion) +
+                "</td><td style='font-size:0.75rem;color:var(--muted)'>" +
+                esc(reasons) +
+                "</td></tr>";
+            });
+            html += "</tbody></table>";
+          }
+          return html;
+        }
+
+        function render(data) {
+          empty.classList.add("hidden");
+          results.classList.remove("hidden");
+          var html = "";
+
+          if ((data.planMode === "default" || data.planMode === "greedy") && data.setPlan) {
+            html = renderDefaultPlan(data);
+            results.innerHTML = html;
+            return;
+          }
+
+          html += '<div class="meta">';
+          html += "<span>Plan: <strong>shaped</strong></span>";
+          html += "<span>Analyzed: <strong>" + esc(data.analyzedTrackCount) + "</strong></span>";
+          html += "<span>Seed: <strong>" + esc(data.seedTrackCount) + "</strong></span>";
+          if (data.pinFirst) {
+            html += "<span>Pinned opener: <strong>" + esc(data.firstTrackTitleQuery) + "</strong></span>";
+          }
+          html += "</div>";
+
+          if (data.seedTracks && data.seedTracks.length) {
+            html += "<h2>Seed order (before shape)</h2><table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>djE</th><th>Ten</th></tr></thead><tbody>";
+            data.seedTracks.forEach(function (t, i) {
+              html +=
+                "<tr><td class='num'>" +
+                (i + 1) +
+                "</td><td>" +
+                esc(t.title) +
+                "</td><td class='num'>" +
+                esc(t.bpm) +
+                "</td><td class='num'>" +
+                esc(t.djEnergy != null ? t.djEnergy.toFixed(2) : "—") +
+                "</td><td class='num'>" +
+                esc(t.tension != null ? t.tension.toFixed(2) : "—") +
+                "</td></tr>";
+            });
+            html += "</tbody></table>";
+          }
+
+          var modes = data.shapeByMode ? Object.keys(data.shapeByMode) : [];
+          if (modes.length) {
+            html += '<div class="tabs" id="modeTabs">';
+            modes.forEach(function (k, i) {
+              html +=
+                '<button type="button" class="tab' +
+                (i === 0 ? " active" : "") +
+                '" data-tab="' +
+                esc(k) +
+                '">' +
+                esc(k) +
+                "</button>";
+            });
+            html += '</div><div id="modePanels">';
+            modes.forEach(function (k, i) {
+              var plan = data.shapeByMode[k];
+              html += '<div class="mode-panel' + (i === 0 ? "" : " hidden") + '" data-panel="' + esc(k) + '">';
+              html += "<h2>Mode: " + esc(k) + "</h2>";
+              html += "<table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>djE</th><th>Ten</th><th>Slot fit</th></tr></thead><tbody>";
+              var tracks = plan.orderedTracks || [];
+              var dbg = plan.slotDebug || [];
+              tracks.forEach(function (t, j) {
+                var d = dbg[j] || {};
+                var fit = d.slotFitScore != null ? d.slotFitScore.toFixed(2) : "—";
+                html +=
+                  "<tr><td class='num'>" +
+                  (j + 1) +
+                  "</td><td>" +
+                  esc(t.title) +
+                  "</td><td class='num'>" +
+                  esc(t.bpm) +
+                  "</td><td class='num'>" +
+                  esc(t.djEnergy != null ? t.djEnergy.toFixed(2) : "—") +
+                  "</td><td class='num'>" +
+                  esc(t.tension != null ? t.tension.toFixed(2) : "—") +
+                  "</td><td class='num'>" +
+                  esc(fit) +
+                  "</td></tr>";
+              });
+              html += "</tbody></table></div>";
+            });
+            html += "</div>";
+          }
+
+          results.innerHTML = html;
+
+          var tabs = results.querySelectorAll("#modeTabs .tab");
+          var panels = results.querySelectorAll("#modePanels .mode-panel");
+          tabs.forEach(function (tab) {
+            tab.addEventListener("click", function () {
+              var name = tab.getAttribute("data-tab");
+              tabs.forEach(function (t) {
+                t.classList.remove("active");
+              });
+              tab.classList.add("active");
+              panels.forEach(function (p) {
+                p.classList.toggle("hidden", p.getAttribute("data-panel") !== name);
+              });
+            });
+          });
+        }
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          clearStatus();
+          submitBtn.disabled = true;
+          var payload = {
+            musicDir: document.getElementById("musicDir").value.trim(),
+            analyzerMode: document.getElementById("analyzerMode").value,
+            planMode: document.getElementById("planMode").value,
+            count: parseInt(document.getElementById("count").value, 10) || 8,
+            firstTrackTitle: document.getElementById("firstTrackTitle").value.trim(),
+            defaultGenre: document.getElementById("defaultGenre").value.trim(),
+            analyzeWorkers: parseInt(document.getElementById("analyzeWorkers").value, 10) || 4,
+            pythonCmd: document.getElementById("pythonCmd").value.trim() || "python",
+            analyzerScript: document.getElementById("analyzerScript").value.trim() || "python/audio_analyzer.py",
+          };
+          if (document.getElementById("reanalyze").checked) {
+            payload.reanalyze = true;
+          }
+          if (payload.planMode === "default" || payload.planMode === "greedy") {
+            payload.targetCurve = document.getElementById("targetCurve").value.trim() || "gradual-rise";
+          } else {
+            payload.shapeModes = document.getElementById("shapeModes").value;
+          }
+          var st = document.getElementById("style").value.trim();
+          if (st) payload.style = st;
+
+          showStatus("Running analyze + planner (may take a while)…", false);
+
+          fetch("/api/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, body: j };
+              });
+            })
+            .then(function (x) {
+              submitBtn.disabled = false;
+              if (!x.body.ok) {
+                showStatus(x.body.error || "Request failed", true);
+                return;
+              }
+              showStatus("Done. Temp JSON: " + (x.body.analyzeOutputPath || ""), false);
+              render(x.body);
+            })
+            .catch(function (err) {
+              submitBtn.disabled = false;
+              showStatus(String(err), true);
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>

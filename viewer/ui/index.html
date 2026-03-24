@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>djset — result viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>djset result viewer</h1>
+      <p>
+        Load JSON from <code>plan</code>, <code>build-from-first</code>, <code>shape-from-first</code>, or a track
+        array (<code>analyze</code> output).
+      </p>
+    </header>
+    <main>
+      <div id="dropzone" class="dropzone">
+        <strong>Drop a JSON file</strong> or click to choose<br />
+        <span>Supports SetPlan, shape-from-first bundle, or <code>[{tracks…}]</code></span>
+      </div>
+      <input type="file" id="fileInput" accept=".json,application/json" class="hidden" />
+
+      <div class="paste-row">
+        <textarea id="jsonPaste" placeholder="Or paste JSON here…"></textarea>
+        <button type="button" class="btn" id="loadPaste">Load pasted JSON</button>
+      </div>
+
+      <div id="error" class="error hidden" role="alert"></div>
+      <div id="content"></div>
+    </main>
+    <footer>
+      Prefer offline? Open <code>viewer/djset-result-viewer.html</code> (single file, no server). Or run
+      <code>.\run.ps1 ui</code> for this copy.
+    </footer>
+    <script src="app.js"></script>
+  </body>
+</html>

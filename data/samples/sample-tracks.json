@@ -1,0 +1,85 @@
+[
+  {
+    "id": "t1",
+    "title": "Warm Intro",
+    "artist": "DJ A",
+    "bpm": 122,
+    "key": "8A",
+    "energy": 0.32,
+    "danceability": 0.64,
+    "genreTags": ["house", "deep"],
+    "vibeTags": ["warm", "groovy"],
+    "durationSec": 365
+  },
+  {
+    "id": "t2",
+    "title": "Drive Line",
+    "artist": "DJ B",
+    "bpm": 123,
+    "key": "9A",
+    "energy": 0.42,
+    "danceability": 0.72,
+    "genreTags": ["house", "melodic"],
+    "vibeTags": ["groovy", "uplifting"],
+    "durationSec": 402
+  },
+  {
+    "id": "t3",
+    "title": "Night Peak",
+    "artist": "DJ C",
+    "bpm": 124,
+    "key": "9B",
+    "energy": 0.57,
+    "danceability": 0.78,
+    "genreTags": ["house", "melodic"],
+    "vibeTags": ["uplifting", "peak"],
+    "durationSec": 390
+  }
+]
+[
+  {
+    "id": "t1",
+    "title": "Warm Intro",
+    "artist": "DJ A",
+    "bpm": 122,
+    "key": "8A",
+    "energy": 0.35,
+    "style": "house"
+  },
+  {
+    "id": "t2",
+    "title": "Sunrise Groove",
+    "artist": "DJ B",
+    "bpm": 123,
+    "key": "9A",
+    "energy": 0.45,
+    "style": "house"
+  },
+  {
+    "id": "t3",
+    "title": "Peak Lights",
+    "artist": "DJ C",
+    "bpm": 124,
+    "key": "9B",
+    "energy": 0.68,
+    "style": "house"
+  },
+  {
+    "id": "t4",
+    "title": "Late Drive",
+    "artist": "DJ D",
+    "bpm": 125,
+    "key": "10B",
+    "energy": 0.78,
+    "style": "house"
+  },
+  {
+    "id": "t5",
+    "title": "Break Reset",
+    "artist": "DJ E",
+    "bpm": 120,
+    "key": "6A",
+    "energy": 0.25,
+    "style": "breaks"
+  }
+]
