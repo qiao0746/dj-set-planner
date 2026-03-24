@@ -53,7 +53,7 @@ Then open **http://127.0.0.1:8787/** (serves `interactive/index.html`). You can:
 - Choose **analyze mode** (`standard` / `rekordbox-like`)
 - **Plan mode** (default **Default**): same as **`build-from-first`** — opener stays **#1**, following tracks chosen for **transition scoring**; response includes **`transitions`**. Optional **target curve** (e.g. `gradual-rise`).
 - **Plan mode Shaped**: **set-shape** modes (all / club / rave / house_party); optional **opening track** pins **#1** for the curve pass.
-- Set **track count** (1–10); **opening track** optional (default plan: empty = first file in analyze order)
+- Set **track count** (1–50); **opening track** optional (default plan: empty = first file in analyze order)
 - Click **Analyze & generate** — **`POST /api/run`** (`planMode`: `default` default, or `shaped`; `targetCurve` for default plan; legacy `greedy` is accepted)
 - **Analyze cache (UI):** results are written under **`%USERPROFILE%\.djset\analyze-cache\`** — one subfolder per **music folder** (hash of its absolute path), then a **`{options}.json`** file per combo of analyze mode, default genre, Python command, and analyzer script. A sidecar **`{options}.json.cache.json`** stores per-track Python features (same as CLI). Optional JSON field **`reanalyze`: `true`** (Advanced: *Force re-analyze*) clears that run’s per-file cache.
 
@@ -112,7 +112,7 @@ mvn -q -DskipTests compile exec:java "-Dexec.args=transitions --help"
 .\run.ps1 plan --input .\data\samples\sample-tracks.json --style house --target-curve gradual-rise --count 5
 ```
 
-`--count` is optional and accepts `1-10`.
+`--count` is optional and accepts `1-50`.
 If not enough relevant tracks are available, the planner may return fewer tracks.
 
 ## Recommend next songs from current song

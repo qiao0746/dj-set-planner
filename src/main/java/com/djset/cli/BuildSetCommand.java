@@ -1,5 +1,6 @@
 package com.djset.cli;
 
+import com.djset.PlanLimits;
 import com.djset.model.SetPlan;
 import com.djset.model.Track;
 import com.djset.service.BuildSetService;
@@ -27,7 +28,10 @@ public class BuildSetCommand implements Runnable {
     @Option(names = "--target-curve", description = "Optional target curve.")
     private String targetCurve;
 
-    @Option(names = "--count", description = "Number of songs to include (1-10).")
+    @Option(
+            names = "--count",
+            description = "Number of songs to include (" + PlanLimits.MIN_SET_SIZE + "-" + PlanLimits.MAX_SET_SIZE + ")."
+    )
     private Integer count;
 
     @Override

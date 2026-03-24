@@ -1,5 +1,6 @@
 package com.djset.service;
 
+import com.djset.PlanLimits;
 import com.djset.model.SetPlan;
 import com.djset.model.Track;
 import com.djset.model.Transition;
@@ -10,8 +11,8 @@ import java.util.Comparator;
 import java.util.List;
 
 public class SetPlannerService {
-    private static final int MAX_RECOMMENDATIONS = 10;
-    private static final int MIN_RECOMMENDATIONS = 1;
+    private static final int MAX_RECOMMENDATIONS = PlanLimits.MAX_SET_SIZE;
+    private static final int MIN_RECOMMENDATIONS = PlanLimits.MIN_SET_SIZE;
     private static final double DEFAULT_OVERALL_SCORE = 0.0;
     private static final double MIN_ACCEPTABLE_TRANSITION_SCORE = 1.0;
     private static final double LONG_BLEND_THRESHOLD = 6.0;
@@ -175,7 +176,12 @@ public class SetPlannerService {
             return Math.min(availableTracks, MAX_RECOMMENDATIONS);
         }
         if (requestedCount < MIN_RECOMMENDATIONS || requestedCount > MAX_RECOMMENDATIONS) {
-            throw new IllegalArgumentException("Requested count must be between 1 and 10.");
+            throw new IllegalArgumentException(
+                    "Requested count must be between "
+                            + MIN_RECOMMENDATIONS
+                            + " and "
+                            + MAX_RECOMMENDATIONS
+                            + ".");
         }
         return Math.min(availableTracks, requestedCount);
     }

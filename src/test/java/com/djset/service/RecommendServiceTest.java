@@ -1,5 +1,6 @@
 package com.djset.service;
 
+import com.djset.PlanLimits;
 import com.djset.model.RecommendationResult;
 import com.djset.model.Track;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,9 @@ class RecommendServiceTest {
     @Test
     void recommendRejectsInvalidCount() {
         List<Track> tracks = List.of(track("t1", 122, "8A", 0.30, List.of("house"), List.of("warm")));
-        assertThrows(IllegalArgumentException.class, () -> service.recommendNextSongs(tracks, "t1", 11));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.recommendNextSongs(tracks, "t1", PlanLimits.MAX_SET_SIZE + 1));
     }
 
     private static Track track(

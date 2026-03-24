@@ -1,5 +1,6 @@
 package com.djset.service;
 
+import com.djset.PlanLimits;
 import com.djset.model.SetPlan;
 import com.djset.model.Track;
 import org.junit.jupiter.api.Test;
@@ -54,13 +55,17 @@ class SetPlannerServiceTest {
                 IllegalArgumentException.class,
                 () -> planner.createPlan(tracks, "house", "rise", 0)
         );
-        assertTrue(exLow.getMessage().contains("between 1 and 10"));
+        assertTrue(
+                exLow.getMessage()
+                        .contains("between " + PlanLimits.MIN_SET_SIZE + " and " + PlanLimits.MAX_SET_SIZE));
 
         IllegalArgumentException exHigh = assertThrows(
                 IllegalArgumentException.class,
-                () -> planner.createPlan(tracks, "house", "rise", 11)
+                () -> planner.createPlan(tracks, "house", "rise", PlanLimits.MAX_SET_SIZE + 1)
         );
-        assertTrue(exHigh.getMessage().contains("between 1 and 10"));
+        assertTrue(
+                exHigh.getMessage()
+                        .contains("between " + PlanLimits.MIN_SET_SIZE + " and " + PlanLimits.MAX_SET_SIZE));
     }
 
     @Test

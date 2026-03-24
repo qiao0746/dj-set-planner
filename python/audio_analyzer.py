@@ -88,6 +88,113 @@ def normalize_bpm(bpm):
     return value
 
 
+def _autocorr_tempo_seeds(onset_env, sr, hop_length, np, num_peaks=2):
+    """
+    Rough tempo hypotheses from onset autocorrelation in the MIN_BPM–MAX_BPM lag range.
+    Multiple peaks help when the strongest lag is a harmonic (half/double time) of the musical tempo.
+    """
+    x = onset_env - np.mean(onset_env)
+    if np.max(np.abs(x)) < 1e-12:
+        return []
+    ac = np.correlate(x, x, mode="full")
+    ac = ac[len(ac) // 2 :]
+    ac[0] = 0.0
+    min_lag = max(1, int(np.floor((60.0 / MAX_BPM) * sr / hop_length)))
+    max_lag = min(len(ac) - 1, int(np.ceil((60.0 / MIN_BPM) * sr / hop_length)))
+    if max_lag <= min_lag:
+        return []
+    work = ac[min_lag : max_lag + 1].astype(float).copy()
+    seeds = []
+    width = max(3, (max_lag - min_lag) // 40)
+    for _ in range(num_peaks):
+        if work.size == 0 or np.max(work) <= 0:
+            break
+        rel = int(np.argmax(work))
+        peak_lag = min_lag + rel
+        if peak_lag <= 0:
+            break
+        seeds.append(float(60.0 * sr / (peak_lag * hop_length)))
+        lo = max(0, rel - width)
+        hi = min(len(work), rel + width + 1)
+        work[lo:hi] = 0.0
+    return seeds
+
+
+def _score_tempo_grid_alignment(onset_env, sr, hop_length, bpm, np):
+    """Mean onset strength on beat grid samples; higher = this BPM lines up with transients."""
+    if bpm <= 0 or onset_env.size < 8:
+        return 0.0
+    spf = sr / float(hop_length)
+    period_frames = (60.0 / bpm) * spf
+    if period_frames < 2.0 or period_frames * 3 > len(onset_env):
+        return 0.0
+    pf = float(period_frames)
+    n_shifts = min(32, max(8, int(round(pf * 2))))
+    best = 0.0
+    for k in range(n_shifts):
+        offset = (k / float(n_shifts)) * pf
+        idx = np.arange(offset, len(onset_env), pf)
+        idx = np.round(idx).astype(int)
+        idx = idx[(idx >= 0) & (idx < len(onset_env))]
+        if idx.size < 4:
+            continue
+        best = max(best, float(np.mean(onset_env[idx])))
+    return best
+
+
+def estimate_bpm_resolved(librosa, np, onset_env, sr, hop_length):
+    """
+    Pick BPM among octave-related candidates using onset alignment (no fixed genre tempo).
+    Combines librosa beat_track with autocorrelation seeds, then scores each candidate BPM.
+    """
+    if onset_env.size == 0:
+        return 0.0
+
+    tempo_arr, _ = librosa.beat.beat_track(
+        onset_envelope=onset_env, sr=sr, hop_length=hop_length, trim=False
+    )
+    if isinstance(tempo_arr, np.ndarray):
+        raw_bt = float(tempo_arr.flatten()[0]) if tempo_arr.size else 0.0
+    else:
+        raw_bt = float(tempo_arr) if tempo_arr is not None else 0.0
+
+    seeds = []
+    if raw_bt > 0:
+        seeds.append(raw_bt)
+    seeds.extend(_autocorr_tempo_seeds(onset_env, sr, hop_length, np, num_peaks=2))
+
+    cands = set()
+    for seed in seeds:
+        if seed <= 0:
+            continue
+        for k in range(-5, 6):
+            v = float(seed) * (2.0 ** k)
+            if MIN_BPM <= v <= MAX_BPM:
+                cands.add(v)
+    if raw_bt > 0:
+        cands.add(normalize_bpm(raw_bt))
+
+    if not cands:
+        return normalize_bpm(raw_bt) if raw_bt > 0 else 0.0
+
+    best_score = -1.0
+    ties = []
+    for bpm in sorted(cands):
+        sc = _score_tempo_grid_alignment(onset_env, sr, hop_length, bpm, np)
+        if sc > best_score + 1e-12:
+            best_score = sc
+            ties = [bpm]
+        elif abs(sc - best_score) <= 1e-12:
+            ties.append(bpm)
+
+    if best_score <= 1e-12 and raw_bt > 0:
+        return normalize_bpm(raw_bt)
+
+    if len(ties) > 1:
+        return float(min(ties))
+    return float(ties[0])
+
+
 def estimate_tempo_confidence(librosa, np, onset_env, sr):
     if onset_env.size == 0:
         return 0.0
@@ -161,11 +268,9 @@ def main():
         if y is None or len(y) == 0:
             raise RuntimeError("empty-audio")
 
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-        if isinstance(tempo, np.ndarray):
-            tempo = float(tempo[0]) if tempo.size else 0.0
-        bpm = float(tempo) if tempo is not None else 0.0
-        bpm = normalize_bpm(bpm)
+        hop_length = 512
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
+        bpm = estimate_bpm_resolved(librosa, np, onset_env, sr, hop_length)
 
         chroma_cqt = librosa.feature.chroma_cqt(y=y, sr=sr)
         chroma_stft = librosa.feature.chroma_stft(y=y, sr=sr)
@@ -191,10 +296,11 @@ def main():
         energy = (raw_energy * 1.8) / ((raw_energy * 1.8) + 0.35 + 1e-9)
         energy = clamp01(energy)
 
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
         tempo_confidence = estimate_tempo_confidence(librosa, np, onset_env, sr)
         onset_mean = float(np.mean(onset_env)) if onset_env.size else 0.0
-        tempogram = librosa.feature.tempogram(onset_envelope=onset_env, sr=sr)
+        tempogram = librosa.feature.tempogram(
+            onset_envelope=onset_env, sr=sr, hop_length=hop_length
+        )
         tempo_stability = float(np.mean(np.max(tempogram, axis=0))) if tempogram.size else 0.0
         danceability_raw = (onset_mean * 0.6) + (tempo_stability * 0.4)
         danceability = clamp01(danceability_raw / 8.0)

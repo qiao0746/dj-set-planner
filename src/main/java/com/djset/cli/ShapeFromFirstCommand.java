@@ -1,5 +1,6 @@
 package com.djset.cli;
 
+import com.djset.PlanLimits;
 import com.djset.model.SetPlan;
 import com.djset.model.SetShapePlan;
 import com.djset.model.Track;
@@ -27,7 +28,11 @@ public class ShapeFromFirstCommand implements Runnable {
     @Option(names = "--first-track-title", required = true, description = "Track title (partial match) to start the seed set with.")
     private String firstTrackTitle;
 
-    @Option(names = "--count", required = true, description = "Number of songs to include (1-10).")
+    @Option(
+            names = "--count",
+            required = true,
+            description = "Number of songs to include (" + PlanLimits.MIN_SET_SIZE + "-" + PlanLimits.MAX_SET_SIZE + ")."
+    )
     private Integer count;
 
     @Option(names = "--style", description = "Optional style label for seed generation.")

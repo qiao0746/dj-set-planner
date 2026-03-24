@@ -1,5 +1,6 @@
 package com.djset.service;
 
+import com.djset.PlanLimits;
 import com.djset.model.SetPlan;
 import com.djset.model.SetShapePlan;
 import com.djset.model.Track;
@@ -40,7 +41,7 @@ public class WebPlanService {
         }
 
         int count = req.count == null ? 8 : req.count;
-        count = Math.max(1, Math.min(10, count));
+        count = Math.max(PlanLimits.MIN_SET_SIZE, Math.min(PlanLimits.MAX_SET_SIZE, count));
 
         int workers = Math.max(1, Math.min(32, req.analyzeWorkers));
 

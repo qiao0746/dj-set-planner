@@ -1,5 +1,6 @@
 package com.djset.cli;
 
+import com.djset.PlanLimits;
 import com.djset.model.RecommendationResult;
 import com.djset.model.Track;
 import com.djset.service.RecommendService;
@@ -20,7 +21,11 @@ public class RecommendCommand implements Runnable {
     @Option(names = "--current-track-id", required = true, description = "Current track id.")
     private String currentTrackId;
 
-    @Option(names = "--count", description = "Number of recommendations (1-10).", defaultValue = "5")
+    @Option(
+            names = "--count",
+            description = "Number of recommendations (" + PlanLimits.MIN_SET_SIZE + "-" + PlanLimits.MAX_SET_SIZE + ").",
+            defaultValue = "5"
+    )
     private int count;
 
     @Override

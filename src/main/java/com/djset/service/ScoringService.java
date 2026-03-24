@@ -10,10 +10,22 @@ import java.util.Locale;
 import java.util.Set;
 
 public class ScoringService {
-    private static final double BPM_DIFF_STRICT = 1.0;
-    private static final double BPM_DIFF_GOOD = 2.0;
-    private static final double BPM_DIFF_ACCEPTABLE = 4.0;
-    private static final double BPM_PERCENT_PENALTY_THRESHOLD = 0.03;
+    /**
+     * BPM transition scoring uses a <strong>relative</strong> gap (percent of each track's tempo), not only absolute BPM.
+     * DJ practice commonly discusses small tempo tweaks in percent terms (often low single digits for “transparent” blends;
+     * larger shifts imply heavy pitch/time manipulation and clashing energy). We penalize steeply once the larger of
+     * {@code |Δ|/bpmFrom} and {@code |Δ|/bpmTo} grows, and add an extra brake for very large absolute gaps (different tempo “classes”).
+     */
+    private static final double BPM_REL_VERY_TIGHT = 0.02;
+    private static final double BPM_REL_CLOSE = 0.04;
+    private static final double BPM_REL_MODERATE = 0.06;
+    private static final double BPM_REL_STRETCH = 0.08;
+    private static final double BPM_REL_LARGE = 0.12;
+    private static final double BPM_REL_SEVERE = 0.18;
+
+    private static final double BPM_ABS_EXTRA_1 = 12.0;
+    private static final double BPM_ABS_EXTRA_2 = 20.0;
+
     private static final double CONFIDENCE_DEFAULT = 1.0;
     private static final double CONFIDENCE_MIN_FACTOR = 0.25;
 
@@ -42,38 +54,58 @@ public class ScoringService {
     }
 
     private double scoreBpm(Track from, Track to, List<String> reasons) {
-        double diff = Math.abs(from.getBpm() - to.getBpm());
-        double score;
-        if (diff <= BPM_DIFF_STRICT) {
-            score = 3.0;
-            reasons.add("BPM diff <= 1: +3");
-        } else if (diff <= BPM_DIFF_GOOD) {
-            score = 2.0;
-            reasons.add("BPM diff <= 2: +2");
-        } else if (diff <= BPM_DIFF_ACCEPTABLE) {
-            score = 1.0;
-            reasons.add("BPM diff <= 4: +1");
-        } else {
-            score = -2.0;
-            reasons.add("BPM diff > 4: -2");
+        double bpmFrom = from.getBpm();
+        double bpmTo = to.getBpm();
+        double diff = Math.abs(bpmFrom - bpmTo);
+
+        if (bpmFrom <= 0.0 || bpmTo <= 0.0) {
+            reasons.add("BPM missing or invalid on one track: -5");
+            double tempoConfidence = pairConfidence(from.getTempoConfidence(), to.getTempoConfidence());
+            double score = applyConfidenceWeight(-5.0, tempoConfidence);
+            reasons.add(String.format(Locale.US, "Tempo confidence factor %.2f applied", tempoConfidence));
+            return score;
         }
 
-        if (hasBpmPercentPenalty(from, diff)) {
-            score -= 1.0;
-            reasons.add("BPM percent diff > 3%: -1");
+        double relFrom = diff / bpmFrom;
+        double relTo = diff / bpmTo;
+        double relMax = Math.max(relFrom, relTo);
+
+        double score;
+        if (relMax <= BPM_REL_VERY_TIGHT) {
+            score = 3.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap <= %.0f%%: +3", BPM_REL_VERY_TIGHT * 100.0));
+        } else if (relMax <= BPM_REL_CLOSE) {
+            score = 2.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap <= %.0f%%: +2", BPM_REL_CLOSE * 100.0));
+        } else if (relMax <= BPM_REL_MODERATE) {
+            score = 1.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap <= %.0f%%: +1", BPM_REL_MODERATE * 100.0));
+        } else if (relMax <= BPM_REL_STRETCH) {
+            score = -1.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap <= %.0f%%: -1", BPM_REL_STRETCH * 100.0));
+        } else if (relMax <= BPM_REL_LARGE) {
+            score = -5.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap <= %.0f%%: -5", BPM_REL_LARGE * 100.0));
+        } else if (relMax <= BPM_REL_SEVERE) {
+            score = -9.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap <= %.0f%%: -9", BPM_REL_SEVERE * 100.0));
+        } else {
+            score = -14.0;
+            reasons.add(String.format(Locale.US, "BPM max relative gap > %.0f%%: -14", BPM_REL_SEVERE * 100.0));
         }
+
+        if (diff > BPM_ABS_EXTRA_2) {
+            score -= 3.0;
+            reasons.add(String.format(Locale.US, "BPM absolute diff > %.0f: -3", BPM_ABS_EXTRA_2));
+        } else if (diff > BPM_ABS_EXTRA_1) {
+            score -= 1.0;
+            reasons.add(String.format(Locale.US, "BPM absolute diff > %.0f: -1", BPM_ABS_EXTRA_1));
+        }
+
         double tempoConfidence = pairConfidence(from.getTempoConfidence(), to.getTempoConfidence());
         score = applyConfidenceWeight(score, tempoConfidence);
         reasons.add(String.format(Locale.US, "Tempo confidence factor %.2f applied", tempoConfidence));
         return score;
-    }
-
-    private boolean hasBpmPercentPenalty(Track from, double diff) {
-        if (from.getBpm() <= 0) {
-            return false;
-        }
-        double percentDiff = diff / from.getBpm();
-        return percentDiff > BPM_PERCENT_PENALTY_THRESHOLD;
     }
 
     private double scoreKey(Track from, Track to, List<String> reasons) {

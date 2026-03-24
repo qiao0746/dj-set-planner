@@ -1,5 +1,6 @@
 package com.djset.service;
 
+import com.djset.PlanLimits;
 import com.djset.model.RecommendationResult;
 import com.djset.model.Track;
 import com.djset.model.TrackRecommendation;
@@ -50,7 +51,8 @@ public class RecommendService {
             throw new IllegalArgumentException("Current track id is required.");
         }
         if (count < MIN_COUNT || count > MAX_COUNT) {
-            throw new IllegalArgumentException("Count must be between 1 and 10.");
+            throw new IllegalArgumentException(
+                    "Count must be between " + MIN_COUNT + " and " + MAX_COUNT + ".");
         }
     }
 
