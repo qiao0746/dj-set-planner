@@ -398,10 +398,11 @@ public class AnalyzeService {
             Process process = pb.start();
             String output = new String(process.getInputStream().readAllBytes());
             int exitCode = process.waitFor();
-            if (exitCode != 0 || output.isBlank()) {
+            String jsonPayload = extractAnalyzerJsonPayload(output);
+            if (exitCode != 0 || jsonPayload.isBlank()) {
                 return AnalysisFeatures.empty();
             }
-            return parseAnalysisFeatures(output);
+            return parseAnalysisFeatures(jsonPayload);
         } catch (Exception ex) {
             return AnalysisFeatures.empty();
         }
@@ -786,6 +787,55 @@ public class AnalyzeService {
 
     private double round3(double value) {
         return Math.round(value * 1000.0) / 1000.0;
+    }
+
+    /**
+     * Python stderr is merged into stdout; librosa/numpy may print warnings before the JSON line.
+     * Parsing the whole buffer then fails and previously produced empty features for every track,
+     * which made next-song intent tweaks identical across candidates (flat rankings vs intent).
+     */
+    static String extractAnalyzerJsonPayload(String output) {
+        if (output == null || output.isBlank()) {
+            return "";
+        }
+        String t = output.stripLeading();
+        if (t.startsWith("\uFEFF")) {
+            t = t.substring(1).stripLeading();
+        }
+        if (jsonObjectParses(t)) {
+            return t;
+        }
+        String[] lines = t.split("\\R");
+        for (int i = lines.length - 1; i >= 0; i--) {
+            String line = lines[i].trim();
+            if (line.length() < 2 || line.charAt(0) != '{') {
+                continue;
+            }
+            if (jsonObjectParses(line)) {
+                return line;
+            }
+        }
+        int lastOpen = t.lastIndexOf('{');
+        if (lastOpen >= 0) {
+            String tail = t.substring(lastOpen).trim();
+            if (jsonObjectParses(tail)) {
+                return tail;
+            }
+        }
+        return t.trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean jsonObjectParses(String candidate) {
+        if (candidate == null || candidate.isBlank()) {
+            return false;
+        }
+        try {
+            MAPPER.readValue(candidate, Map.class);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private AnalysisFeatures parseAnalysisFeatures(String json) {

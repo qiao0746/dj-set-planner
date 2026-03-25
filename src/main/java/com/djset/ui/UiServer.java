@@ -1,5 +1,6 @@
 package com.djset.ui;
 
+import com.djset.util.JsonUtil;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -7,13 +8,17 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
 /**
- * Serves {@code viewer/} (interactive planner + static viewer) and {@code POST /api/run}.
+ * Serves {@code viewer/} (interactive planner + static viewer), {@code POST /api/run},
+ * {@code POST /api/next-songs}, and {@code POST /api/clear-cache}.
  */
 public final class UiServer {
 
@@ -40,6 +45,8 @@ public final class UiServer {
         }
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         server.createContext("/api/run", new PlanRunApiHandler());
+        server.createContext("/api/next-songs", new NextSongsApiHandler());
+        server.createContext("/api/clear-cache", new ClearAnalyzeCacheApiHandler());
         server.createContext("/", new ViewerStaticHandler(viewerRoot));
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
@@ -61,8 +68,20 @@ public final class UiServer {
         @Override
         public void handle(HttpExchange ex) throws IOException {
             if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
-                ex.sendResponseHeaders(405, -1);
-                ex.close();
+                String path = ex.getRequestURI() != null ? ex.getRequestURI().getPath() : "";
+                String message = "Method not allowed; static files are served with GET only.";
+                if (path != null && path.startsWith("/api/")) {
+                    message += " Restart the UI from the project root after updating so API routes (e.g. POST /api/next-songs) are registered.";
+                }
+                Map<String, Object> err = new LinkedHashMap<>();
+                err.put("ok", false);
+                err.put("error", message);
+                byte[] bytes = JsonUtil.toJson(err).getBytes(StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+                ex.sendResponseHeaders(405, bytes.length);
+                try (OutputStream os = ex.getResponseBody()) {
+                    os.write(bytes);
+                }
                 return;
             }
             String raw = ex.getRequestURI().getPath();

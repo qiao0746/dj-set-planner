@@ -98,6 +98,17 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .btn.outline {
+        margin-top: 0.65rem;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .btn.outline:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
       details {
         margin-top: 1rem;
         font-size: 0.85rem;
@@ -177,6 +188,25 @@
       a {
         color: var(--accent);
       }
+      .app-nav {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        padding: 0.5rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: #0f1218;
+      }
+      textarea {
+        width: 100%;
+        min-height: 5rem;
+        padding: 0.5rem 0.6rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        font-size: 0.85rem;
+        font-family: var(--font);
+      }
     </style>
   </head>
   <body>
@@ -187,12 +217,19 @@
         smooth transitions. Switch to <strong>shaped</strong> for curve-based club/rave/house_party modes.
       </p>
     </header>
+    <nav class="app-nav" aria-label="Main">
+      <button type="button" class="tab active" id="navPlanner" data-page="planner">Planner</button>
+      <button type="button" class="tab" id="navNext" data-page="next">Next songs</button>
+    </nav>
+    <div id="pagePlanner">
     <div class="layout">
       <aside>
         <form id="form">
           <label for="musicDir">Music folder (full path)</label>
           <input type="text" id="musicDir" name="musicDir" placeholder="C:\Music\my-set" required autocomplete="off" />
           <div class="hint">Windows: use backslashes or double them in JSON; paste path from Explorer.</div>
+          <button type="button" class="btn outline" id="btnClearCachePlanner">Clear analyze cache for this folder</button>
+          <div class="hint">Deletes <code>~/.djset/analyze-cache</code> data for this path (all modes / option combos). Next analyze rebuilds from scratch.</div>
 
           <label for="analyzerMode">Analyze mode (audio)</label>
           <select id="analyzerMode" name="analyzerMode">
@@ -260,6 +297,68 @@
         <div id="results" class="hidden"></div>
       </main>
     </div>
+    </div>
+
+    <div id="pageNext" class="hidden">
+      <div class="layout">
+        <aside>
+          <form id="formNext">
+            <p class="hint" style="margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--text)">
+              Uses the same transition scorer as the planner, then biases ranks by crowd intent.
+            </p>
+            <label for="nsMusicDir">Music folder (full path)</label>
+            <input type="text" id="nsMusicDir" name="nsMusicDir" placeholder="C:\Music\my-set" required autocomplete="off" />
+            <button type="button" class="btn outline" id="btnClearCacheNext">Clear analyze cache for this folder</button>
+            <div class="hint">Same as planner: removes cached JSON + per-file Python features for this library path.</div>
+
+            <label for="nsAnalyzerMode">Analyze mode (audio)</label>
+            <select id="nsAnalyzerMode" name="nsAnalyzerMode">
+              <option value="standard">standard</option>
+              <option value="rekordbox-like">rekordbox-like</option>
+            </select>
+
+            <label for="nsCurrentTitle">Current track (partial title)</label>
+            <input type="text" id="nsCurrentTitle" name="nsCurrentTitle" placeholder="e.g. Coming Up" required autocomplete="off" />
+
+            <label for="nsCandidateTitles">Candidate tracks (optional)</label>
+            <textarea id="nsCandidateTitles" name="nsCandidateTitles" placeholder="One partial title per line. Leave empty to use every other track in the folder."></textarea>
+            <div class="hint">Empty = all analyzed tracks except the current one.</div>
+
+            <label for="nsIntent">Crowd intent</label>
+            <select id="nsIntent" name="nsIntent">
+              <option value="uplift">Uplift — higher energy, room lift</option>
+              <option value="chill">Chill — softer, smoother</option>
+              <option value="groovy">Groovy — similar energy, flow</option>
+            </select>
+
+            <label for="nsNumRecs">Number of recommendations (1–20)</label>
+            <input type="number" id="nsNumRecs" name="nsNumRecs" min="1" max="20" value="5" />
+
+            <label for="nsDefaultGenre">Default genre (if MP3 has none)</label>
+            <input type="text" id="nsDefaultGenre" name="nsDefaultGenre" value="house" />
+
+            <details>
+              <summary>Advanced</summary>
+              <label for="nsAnalyzeWorkers">Parallel workers (1–32)</label>
+              <input type="number" id="nsAnalyzeWorkers" name="nsAnalyzeWorkers" min="1" max="32" value="4" />
+              <label for="nsPythonCmd">Python command</label>
+              <input type="text" id="nsPythonCmd" name="nsPythonCmd" value="python" />
+              <label for="nsAnalyzerScript">Analyzer script path</label>
+              <input type="text" id="nsAnalyzerScript" name="nsAnalyzerScript" value="python/audio_analyzer.py" />
+              <label class="checkbox-label"><input type="checkbox" id="nsReanalyze" name="nsReanalyze" /> Force re-analyze</label>
+            </details>
+
+            <button type="submit" class="btn" id="nsSubmitBtn">Analyze &amp; rank next songs</button>
+          </form>
+          <div id="nsStatus" class="status hidden"></div>
+        </aside>
+        <main>
+          <div id="nsEmpty" class="hint">Submit the form to see ranked recommendations.</div>
+          <div id="nsResults" class="hidden"></div>
+        </main>
+      </div>
+    </div>
+
     <script>
       (function () {
         var form = document.getElementById("form");
@@ -270,6 +369,24 @@
         var planModeEl = document.getElementById("planMode");
         var defaultOptions = document.getElementById("defaultOptions");
         var shapedOptions = document.getElementById("shapedOptions");
+        var pagePlanner = document.getElementById("pagePlanner");
+        var pageNext = document.getElementById("pageNext");
+        var navPlanner = document.getElementById("navPlanner");
+        var navNext = document.getElementById("navNext");
+
+        function setAppPage(name) {
+          var isPlanner = name === "planner";
+          pagePlanner.classList.toggle("hidden", !isPlanner);
+          pageNext.classList.toggle("hidden", isPlanner);
+          navPlanner.classList.toggle("active", isPlanner);
+          navNext.classList.toggle("active", !isPlanner);
+        }
+        navPlanner.addEventListener("click", function () {
+          setAppPage("planner");
+        });
+        navNext.addEventListener("click", function () {
+          setAppPage("next");
+        });
 
         function syncPlanModeUi() {
           var isDefault = planModeEl.value === "default";
@@ -286,11 +403,38 @@
           return d.innerHTML;
         }
 
+        function formatBpm(t) {
+          if (t == null || t.bpm == null || t.bpm === "") return "—";
+          var b = Number(t.bpm);
+          if (!isFinite(b) || b <= 0) return "—";
+          return String(Math.round(b * 10) / 10);
+        }
+
+        function formatGenre(t) {
+          if (t == null) return "—";
+          var g = t.genreTags;
+          if (!Array.isArray(g) || g.length === 0) return "—";
+          var parts = [];
+          for (var i = 0; i < g.length; i++) {
+            if (g[i] != null && String(g[i]).trim() !== "") parts.push(String(g[i]).trim());
+          }
+          return parts.length ? parts.join(", ") : "—";
+        }
+
         /** id -> display title for transition rows (falls back to id). */
         function trackLabelById(tracks) {
           var map = {};
           (tracks || []).forEach(function (t) {
             if (t && t.id != null && t.id !== "") map[t.id] = t.title && String(t.title).trim() !== "" ? t.title : t.id;
+          });
+          return map;
+        }
+
+        /** id -> full track for transitions (genre / BPM). */
+        function trackMapById(tracks) {
+          var map = {};
+          (tracks || []).forEach(function (t) {
+            if (t && t.id != null && t.id !== "") map[t.id] = t;
           });
           return map;
         }
@@ -329,15 +473,17 @@
           html += '<div class="meta"><span>Style: <strong>' + esc(sp.style) + "</strong></span>";
           html += "<span>Curve: <strong>" + esc(sp.targetCurve) + "</strong></span>";
           html += "<span>Overall: <strong>" + esc(sp.overallScore != null ? sp.overallScore.toFixed(3) : "—") + "</strong></span></div>";
-          html += "<table><thead><tr><th>#</th><th>Title</th><th>BPM</th><th>djE</th><th>Ten</th></tr></thead><tbody>";
+          html += "<table><thead><tr><th>#</th><th>Title</th><th>Genre</th><th class='num'>BPM</th><th class='num'>djE</th><th class='num'>Ten</th></tr></thead><tbody>";
           (sp.orderedTracks || []).forEach(function (t, i) {
             html +=
               "<tr><td class='num'>" +
               (i + 1) +
               "</td><td>" +
               esc(t.title) +
+              "</td><td>" +
+              esc(formatGenre(t)) +
               "</td><td class='num'>" +
-              esc(t.bpm) +
+              esc(formatBpm(t)) +
               "</td><td class='num'>" +
               esc(t.djEnergy != null ? t.djEnergy.toFixed(2) : "—") +
               "</td><td class='num'>" +
@@ -348,17 +494,29 @@
           var trans = sp.transitions || [];
           if (trans.length) {
             var tLabels = trackLabelById(sp.orderedTracks);
-            html += "<h2>Transitions</h2><table><thead><tr><th>From → To</th><th>Score</th><th>Mix</th><th>Reasons</th></tr></thead><tbody>";
+            var tById = trackMapById(sp.orderedTracks);
+            html +=
+              "<h2>Transitions</h2><table><thead><tr><th>From → To</th><th>Genre (from)</th><th class='num'>BPM</th><th>Genre (to)</th><th class='num'>BPM</th><th class='num'>Score</th><th>Mix</th><th>Reasons</th></tr></thead><tbody>";
             trans.forEach(function (tr) {
               var reasons = Array.isArray(tr.reasons) ? tr.reasons.join("; ") : "";
               var fromL = tLabels[tr.fromTrackId] || tr.fromTrackId;
               var toL = tLabels[tr.toTrackId] || tr.toTrackId;
+              var fromT = tById[tr.fromTrackId] || {};
+              var toT = tById[tr.toTrackId] || {};
               html +=
                 "<tr><td><small>" +
                 esc(fromL) +
                 " → " +
                 esc(toL) +
-                "</small></td><td class='num'>" +
+                "</small></td><td>" +
+                esc(formatGenre(fromT)) +
+                "</td><td class='num'>" +
+                esc(formatBpm(fromT)) +
+                "</td><td>" +
+                esc(formatGenre(toT)) +
+                "</td><td class='num'>" +
+                esc(formatBpm(toT)) +
+                "</td><td class='num'>" +
                 esc(tr.compatibilityScore != null ? tr.compatibilityScore.toFixed(3) : "—") +
                 "</td><td>" +
                 esc(tr.mixSuggestion) +
@@ -522,6 +680,188 @@
             .catch(function (err) {
               submitBtn.disabled = false;
               showStatus(String(err), true);
+            });
+        });
+
+        var formNext = document.getElementById("formNext");
+        var nsStatus = document.getElementById("nsStatus");
+        var nsEmpty = document.getElementById("nsEmpty");
+        var nsResults = document.getElementById("nsResults");
+        var nsSubmitBtn = document.getElementById("nsSubmitBtn");
+
+        function nsShowStatus(msg, isErr) {
+          nsStatus.textContent = msg;
+          nsStatus.classList.remove("hidden");
+          nsStatus.classList.toggle("error", !!isErr);
+        }
+        function nsClearStatus() {
+          nsStatus.classList.add("hidden");
+          nsStatus.textContent = "";
+        }
+
+        function postClearCache(musicDir) {
+          var path = (musicDir && String(musicDir).trim()) || "";
+          return fetch("/api/clear-cache", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ musicDir: path }),
+          }).then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          });
+        }
+
+        document.getElementById("btnClearCachePlanner").addEventListener("click", function () {
+          var btn = document.getElementById("btnClearCachePlanner");
+          var dir = document.getElementById("musicDir").value;
+          if (!dir || !String(dir).trim()) {
+            showStatus("Enter a music folder path first.", true);
+            return;
+          }
+          btn.disabled = true;
+          postClearCache(dir)
+            .then(function (x) {
+              btn.disabled = false;
+              if (!x.body.ok) {
+                showStatus(x.body.error || "Clear cache failed", true);
+                return;
+              }
+              var n = x.body.removedEntries != null ? x.body.removedEntries : 0;
+              var msg = x.body.hadCache ? "Cache cleared. Removed " + n + " item(s)." : "No cache was present for this folder.";
+              showStatus(msg, false);
+            })
+            .catch(function (err) {
+              btn.disabled = false;
+              showStatus(String(err), true);
+            });
+        });
+
+        document.getElementById("btnClearCacheNext").addEventListener("click", function () {
+          var btn = document.getElementById("btnClearCacheNext");
+          var dir = document.getElementById("nsMusicDir").value;
+          if (!dir || !String(dir).trim()) {
+            nsShowStatus("Enter a music folder path first.", true);
+            return;
+          }
+          btn.disabled = true;
+          postClearCache(dir)
+            .then(function (x) {
+              btn.disabled = false;
+              if (!x.body.ok) {
+                nsShowStatus(x.body.error || "Clear cache failed", true);
+                return;
+              }
+              var n = x.body.removedEntries != null ? x.body.removedEntries : 0;
+              var msg = x.body.hadCache ? "Cache cleared. Removed " + n + " item(s)." : "No cache was present for this folder.";
+              nsShowStatus(msg, false);
+            })
+            .catch(function (err) {
+              btn.disabled = false;
+              nsShowStatus(String(err), true);
+            });
+        });
+
+        function renderNextSongs(data) {
+          nsEmpty.classList.add("hidden");
+          nsResults.classList.remove("hidden");
+          var cur = data.currentTrack || {};
+          var html = "";
+          html += '<div class="meta">';
+          html += "<span>Intent: <strong>" + esc(data.intent) + "</strong></span>";
+          html += "<span>Analyzed: <strong>" + esc(data.analyzedTrackCount) + "</strong></span>";
+          html +=
+            "<span>Showing: <strong>" +
+            esc((data.recommendations || []).length) +
+            "</strong> of " +
+            esc(data.numberOfRecommendations) +
+            "</span>";
+          html += "</div>";
+          html += "<h2>Now playing</h2><p>" + esc(cur.title || cur.id) + (cur.artist ? " — " + esc(cur.artist) : "") + "</p>";
+          html +=
+            "<h2>Recommendations</h2><table><thead><tr><th>#</th><th>Title</th><th>Artist</th><th>Genre</th><th class='num'>BPM</th><th class='num'>Score</th><th>Mix</th><th>Why</th></tr></thead><tbody>";
+          (data.recommendations || []).forEach(function (row, i) {
+            var t = row.track || {};
+            html +=
+              "<tr><td class='num'>" +
+              (i + 1) +
+              "</td><td>" +
+              esc(t.title) +
+              "</td><td>" +
+              esc(t.artist) +
+              "</td><td>" +
+              esc(formatGenre(t)) +
+              "</td><td class='num'>" +
+              esc(formatBpm(t)) +
+              "</td><td class='num'>" +
+              esc(row.finalScore != null ? row.finalScore.toFixed(3) : "—") +
+              "</td><td style='font-size:0.82rem'>" +
+              esc(row.mixSuggestion != null && String(row.mixSuggestion).trim() !== "" ? row.mixSuggestion : "—") +
+              "</td><td style='font-size:0.78rem;color:var(--muted)'>" +
+              esc(row.explanation) +
+              "</td></tr>";
+          });
+          html += "</tbody></table>";
+          if (data.analyzeOutputPath) {
+            html +=
+              '<p class="hint" style="margin-top:0.75rem">Analyze JSON: <code style="word-break:break-all">' +
+              esc(data.analyzeOutputPath) +
+              "</code></p>";
+          }
+          nsResults.innerHTML = html;
+        }
+
+        formNext.addEventListener("submit", function (e) {
+          e.preventDefault();
+          nsClearStatus();
+          nsSubmitBtn.disabled = true;
+          var lines = document.getElementById("nsCandidateTitles").value.split(/\r?\n/);
+          var titles = [];
+          lines.forEach(function (line) {
+            var t = line.trim();
+            if (t) titles.push(t);
+          });
+          var nRec = parseInt(document.getElementById("nsNumRecs").value, 10);
+          if (isNaN(nRec) || nRec < 1) nRec = 5;
+          if (nRec > 20) nRec = 20;
+          var payload = {
+            musicDir: document.getElementById("nsMusicDir").value.trim(),
+            analyzerMode: document.getElementById("nsAnalyzerMode").value,
+            currentTrackTitle: document.getElementById("nsCurrentTitle").value.trim(),
+            intent: document.getElementById("nsIntent").value,
+            numberOfRecommendations: nRec,
+            defaultGenre: document.getElementById("nsDefaultGenre").value.trim(),
+            analyzeWorkers: parseInt(document.getElementById("nsAnalyzeWorkers").value, 10) || 4,
+            pythonCmd: document.getElementById("nsPythonCmd").value.trim() || "python",
+            analyzerScript: document.getElementById("nsAnalyzerScript").value.trim() || "python/audio_analyzer.py",
+          };
+          if (titles.length) payload.candidateTrackTitles = titles;
+          if (document.getElementById("nsReanalyze").checked) payload.reanalyze = true;
+
+          nsShowStatus("Running analyze + next-song ranking…", false);
+
+          fetch("/api/next-songs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, body: j };
+              });
+            })
+            .then(function (x) {
+              nsSubmitBtn.disabled = false;
+              if (!x.body.ok) {
+                nsShowStatus(x.body.error || "Request failed", true);
+                return;
+              }
+              nsShowStatus("Done.", false);
+              renderNextSongs(x.body);
+            })
+            .catch(function (err) {
+              nsSubmitBtn.disabled = false;
+              nsShowStatus(String(err), true);
             });
         });
       })();

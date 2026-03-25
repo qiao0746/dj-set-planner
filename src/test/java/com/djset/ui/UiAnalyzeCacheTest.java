@@ -5,9 +5,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UiAnalyzeCacheTest {
@@ -36,5 +38,30 @@ class UiAnalyzeCacheTest {
         String o = UiAnalyzeCache.optionsKey("standard", "", "python", "python/audio_analyzer.py");
         assertEquals(20, o.length());
         assertTrue(o.chars().allMatch(c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')));
+    }
+
+    @Test
+    void clearLibraryCacheRemovesBucketForFolder(@TempDir Path tmp) throws Exception {
+        Path music = tmp.resolve("lib").toAbsolutePath().normalize();
+        Files.createDirectories(music);
+        Path out = UiAnalyzeCache.ensureAnalyzeOutputJson(music, "standard", "house", "python", "python/audio_analyzer.py");
+        Files.createDirectories(out.getParent());
+        Files.writeString(out, "[]");
+        Path sidecar = Path.of(out.toString() + ".cache.json");
+        Files.writeString(sidecar, "{}");
+
+        Map<String, Object> r = UiAnalyzeCache.clearLibraryCache(music);
+        assertTrue((Boolean) r.get("hadCache"));
+        assertTrue(((Number) r.get("removedEntries")).intValue() >= 2);
+        assertFalse(Files.exists(out.getParent()));
+    }
+
+    @Test
+    void clearLibraryCacheNoOpWhenMissing(@TempDir Path tmp) throws Exception {
+        Path music = tmp.resolve("only-lib").toAbsolutePath().normalize();
+        Files.createDirectories(music);
+        Map<String, Object> r = UiAnalyzeCache.clearLibraryCache(music);
+        assertFalse((Boolean) r.get("hadCache"));
+        assertEquals(0, ((Number) r.get("removedEntries")).intValue());
     }
 }

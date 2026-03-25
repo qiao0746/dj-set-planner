@@ -276,7 +276,11 @@ def main():
         chroma_stft = librosa.feature.chroma_stft(y=y, sr=sr)
         chroma = (chroma_cqt + chroma_stft) / 2.0 if chroma_cqt.size and chroma_stft.size else chroma_cqt
         if args.mode == "rekordbox-like":
-            key, key_confidence = estimate_key_segment_smoothed(chroma, np)
+            try:
+                key, key_confidence = estimate_key_segment_smoothed(chroma, np)
+            except Exception:
+                chroma_mean = np.mean(chroma, axis=1) if chroma.size else np.zeros((12,))
+                key, key_confidence = estimate_key_camelot(chroma_mean, np)
             key_threshold = KEY_CONFIDENCE_MIN_REKORDBOX_LIKE
         else:
             chroma_mean = np.mean(chroma, axis=1) if chroma.size else np.zeros((12,))

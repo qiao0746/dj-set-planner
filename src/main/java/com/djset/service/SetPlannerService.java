@@ -15,8 +15,6 @@ public class SetPlannerService {
     private static final int MIN_RECOMMENDATIONS = PlanLimits.MIN_SET_SIZE;
     private static final double DEFAULT_OVERALL_SCORE = 0.0;
     private static final double MIN_ACCEPTABLE_TRANSITION_SCORE = 1.0;
-    private static final double LONG_BLEND_THRESHOLD = 6.0;
-    private static final double STANDARD_BLEND_THRESHOLD = 3.0;
 
     private final ScoringService scoringService;
 
@@ -71,7 +69,7 @@ public class SetPlannerService {
                     candidate.toTrack.getId(),
                     candidate.scoreResult.getTotalScore(),
                     candidate.scoreResult.getReasons(),
-                    buildMixSuggestion(candidate.scoreResult)
+                    MixSuggestion.fromTransitionScore(candidate.scoreResult)
             ));
             transitionScoreSum += candidate.scoreResult.getTotalScore();
         }
@@ -121,7 +119,7 @@ public class SetPlannerService {
                     candidate.toTrack.getId(),
                     candidate.scoreResult.getTotalScore(),
                     candidate.scoreResult.getReasons(),
-                    buildMixSuggestion(candidate.scoreResult)
+                    MixSuggestion.fromTransitionScore(candidate.scoreResult)
             ));
             transitionScoreSum += candidate.scoreResult.getTotalScore();
         }
@@ -203,16 +201,6 @@ public class SetPlannerService {
         String aId = a.toTrack.getId() == null ? "" : a.toTrack.getId();
         String bId = b.toTrack.getId() == null ? "" : b.toTrack.getId();
         return aId.compareTo(bId);
-    }
-
-    private String buildMixSuggestion(TransitionScoreResult scoreResult) {
-        if (scoreResult.getTotalScore() >= LONG_BLEND_THRESHOLD) {
-            return "Long blend, phrased 16-32 bars.";
-        }
-        if (scoreResult.getTotalScore() >= STANDARD_BLEND_THRESHOLD) {
-            return "Standard blend, 8-16 bars.";
-        }
-        return "Quick transition recommended.";
     }
 
     private static final class TransitionCandidate {
